@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "TradeEvent",
+  "namespace": "equity_ops",
+  "fields": [
+    {"name": "trade_id", "type": "string"},
+    {"name": "version", "type": "int"},
+    {"name": "symbol", "type": "string"},
+    {"name": "signed_quantity", "type": "long"},
+    {"name": "price_in_pence", "type": "long", "doc": "Price per share in GBP pence. On the LSE, prices are in pence, 1/100th of GBP - 1 pound sterling"},
+    {"name": "cancelled", "type": "boolean"}
+  ]
+}
