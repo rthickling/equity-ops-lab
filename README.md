@@ -1,2 +1,2 @@
-# equity-ops-lab
+# Equity Ops Lab
 Equity Operations System from scratch
