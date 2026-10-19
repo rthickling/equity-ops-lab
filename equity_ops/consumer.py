@@ -17,9 +17,9 @@ class TradeConsumer():
 
     def __init__(self):
         self.conn = sqlite3.connect(self.EQUITY_OPS_LAB / "db" / "trades.db")
-        storage.initialise_db(self.conn)
-        self.conn.commit()
-
+        with self.conn:
+            storage.initialise_db(self.conn)
+    
     def __del__(self):
         self.conn.close()
 
@@ -49,8 +49,8 @@ class TradeConsumer():
                         stream = io.BytesIO(msg.value())
                         record = schemaless_reader(stream, schema)
                         event = TradeEvent(**record)
-                        storage.store_event(self.conn, event)
-                        self.conn.commit()
+                        with self.conn:
+                            storage.store_event(self.conn, event)
                         consumer.commit(message=msg, asynchronous=False)
                         logging.info(f"TradeEvent: {event}")
             except KeyboardInterrupt:
