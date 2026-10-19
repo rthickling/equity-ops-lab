@@ -19,10 +19,10 @@ class TradeConsumer():
         self.conn = sqlite3.connect(self.EQUITY_OPS_LAB / "db" / "trades.db")
         with self.conn:
             storage.initialise_db(self.conn)
-    
-    def __del__(self):
-        self.conn.close()
 
+    def close_db(self):
+        self.conn.close()
+    
     def receive_kafka_event(self):
         with self.SCHEMA_PATH.open(encoding="utf-8") as schema_file:
             schema = parse_schema(json.load(schema_file))
@@ -51,8 +51,10 @@ class TradeConsumer():
                         event = TradeEvent(**record)
                         with self.conn:
                             storage.store_event(self.conn, event)
-                        consumer.commit(message=msg, asynchronous=False)
-                        logging.info(f"TradeEvent: {event}")
+                        committed = consumer.commit(message=msg, asynchronous=False)
+                        for partition in committed:
+                            if partition.err is not None:
+                                raise KafkaException(partition.err)                        logging.info(f"TradeEvent: {event}")
             except KeyboardInterrupt:
                 logging.info("Consumer stopped by Ctrl-c")
 
@@ -63,4 +65,7 @@ class TradeConsumer():
 if __name__ == "__main__":
     logging.info("Starting")
     tc = TradeConsumer()
-    tc.receive_kafka_event()
+    try:
+        tc.receive_kafka_event()
+    finally:
+        tc.close_db()
