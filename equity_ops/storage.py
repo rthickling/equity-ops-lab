@@ -8,7 +8,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-equity_ops_lab = Path(__file__).resolve().parent.parent
+EQUITY_OPS_LAB = Path(__file__).resolve().parent.parent
 
 def initialise_db(conn: sqlite3.Connection) -> None:
     logging.debug("Initializing DB")
@@ -75,7 +75,7 @@ def get_latest_versions_pandas(conn: sqlite3.Connection) -> pd.DataFrame:
     """, conn)
 
 if __name__ == "__main__":
-    conn = sqlite3.connect(equity_ops_lab / "db" / "trades.db")
+    conn = sqlite3.connect(EQUITY_OPS_LAB / "db" / "trades.db")
     with conn:
         conn.execute("DROP TABLE trade_events;")
         conn.commit()

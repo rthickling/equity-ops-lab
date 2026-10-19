@@ -1,6 +1,8 @@
 from fastavro import parse_schema, schemaless_reader
 import json
+import sqlite3
 from equity_ops.contracts import TradeEvent
+from equity_ops import storage
 from confluent_kafka import Consumer, KafkaException
 import logging
 from pathlib import Path
@@ -8,47 +10,57 @@ import io
 
 logging.basicConfig(level=logging.INFO)
 
-SCHEMA_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "schemas"
-    / "trade_event.avsc"
-)
 
+class TradeConsumer():
+    EQUITY_OPS_LAB = Path(__file__).resolve().parents[1]
+    SCHEMA_PATH = EQUITY_OPS_LAB / "schemas" / "trade_event.avsc"
 
-def receive_kafka_event():
-    with SCHEMA_PATH.open(encoding="utf-8") as schema_file:
-        schema = parse_schema(json.load(schema_file))
+    def __init__(self):
+        self.conn = sqlite3.connect(self.EQUITY_OPS_LAB / "db" / "trades.db")
+        storage.initialise_db(self.conn)
+        self.conn.commit()
 
-        consumer = Consumer({
-            "bootstrap.servers": "localhost:9092",
-            "group.id": "equity-ops-lab-reader-1",
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": False,
-        })
+    def __del__(self):
+        self.conn.close()
 
-        topic = "equity-ops.trades.raw"
-        try:
-            consumer.subscribe([topic])
-            logging.info(f"Subscribed to {topic}")
+    def receive_kafka_event(self):
+        with self.SCHEMA_PATH.open(encoding="utf-8") as schema_file:
+            schema = parse_schema(json.load(schema_file))
 
-            while True:
-                msg = consumer.poll(timeout=1.0)
-                if msg is None: continue
+            consumer = Consumer({
+                "bootstrap.servers": "localhost:9092",
+                "group.id": "equity-ops-lab-reader-1",
+                "auto.offset.reset": "earliest",
+                "enable.auto.commit": False,
+            })
 
-                if msg.error():
-                    raise KafkaException(msg.error())
-                else:
-                    stream = io.BytesIO(msg.value())
-                    record = schemaless_reader(stream, schema)
-                    event = TradeEvent(**record)
-                    logging.info(f"TradeEvent: {event}")
-        except KeyboardInterrupt:
-            logging.info("Consumer stopped by Ctrl-c")
+            topic = "equity-ops.trades.raw"
+            try:
+                consumer.subscribe([topic])
+                logging.info(f"Subscribed to {topic}")
 
-        finally:
-            consumer.close()
+                while True:
+                    msg = consumer.poll(timeout=1.0)
+                    if msg is None: continue
+
+                    if msg.error():
+                        raise KafkaException(msg.error())
+                    else:
+                        stream = io.BytesIO(msg.value())
+                        record = schemaless_reader(stream, schema)
+                        event = TradeEvent(**record)
+                        storage.store_event(self.conn, event)
+                        self.conn.commit()
+                        consumer.commit(message=msg, asynchronous=False)
+                        logging.info(f"TradeEvent: {event}")
+            except KeyboardInterrupt:
+                logging.info("Consumer stopped by Ctrl-c")
+
+            finally:
+                consumer.close()
 
 
 if __name__ == "__main__":
     logging.info("Starting")
-    receive_kafka_event()
+    tc = TradeConsumer()
+    tc.receive_kafka_event()
