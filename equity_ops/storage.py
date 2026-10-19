@@ -51,6 +51,15 @@ def store_event(
         conn.execute(sql, (*astuple(event),))
         return True
 
+def get_latest_versions(conn: sqlite3.Connection) -> list[tuple[str, int, str, int, int, bool]]:
+    cur = conn.execute(
+    #  @note that this select with both columns and max() on a GROUP BY is Sqlite specific.
+    """
+        SELECT trade_id, max(version), symbol, signed_quantity, price_in_pence, cancelled FROM trade_events
+        GROUP BY trade_id
+        ORDER BY trade_id;
+    """)
+    return cur.fetchall()
 
 if __name__ == "__main__":
     conn = sqlite3.connect(equity_ops_lab / "db" / "trades.db")

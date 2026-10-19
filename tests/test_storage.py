@@ -1,8 +1,9 @@
 import unittest
 import sqlite3
+from dataclasses import astuple
 from equity_ops.contracts import TradeEvent
 from tests.fixtures import TRADE_EVENTS
-from equity_ops.storage import initialise_db, store_event
+from equity_ops.storage import initialise_db, store_event, get_latest_versions
 
 
 class SqliteTestCase(unittest.TestCase):
@@ -26,11 +27,12 @@ class TestStorageCreate(SqliteTestCase):
         initialise_db(self.conn)
         self.assertEqual(self.check_rows(), 0)
 
-class TestStorageUse(SqliteTestCase):
+class SqliteInitialised(SqliteTestCase):
     def setUp(self):
         super().setUp()
         initialise_db(self.conn)
 
+class TestStorageUse(SqliteInitialised):
     def test_store_new_event(self):
         self.assertTrue(store_event(self.conn, TRADE_EVENTS[0]))
 
@@ -60,8 +62,14 @@ class TestStorageUse(SqliteTestCase):
             self.conn.commit()
         self.assertEqual(4, self.check_rows())
 
+class TestVersions(SqliteInitialised):
+    def setUp(self):
+        super().setUp()
+        with self.conn:
+            for event in TRADE_EVENTS:
+                store_event(self.conn, event)
 
-
-
-
-
+    def test_latest_versions(self):
+        self.assertEqual(
+            get_latest_versions(self.conn), 
+            [astuple(TRADE_EVENTS[2]), astuple(TRADE_EVENTS[3])])
